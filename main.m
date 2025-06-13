@@ -6,7 +6,7 @@ close all
 rng(5) % Set random seed for repeatability
 area = 100; % Meter (area x area)
 n = 50; % Number of nodes
-lower = 10;
+lower = -10;
 upper = 30;
 
 coordinates = area*rand([n 2]);
@@ -21,8 +21,8 @@ nNeeded = ceil(find_n(sensorRadius)*area);
 r = sqrt((2*log(n))/(n))*area;
 prob = 1 - 1/n^2;
 sensorRadius = r;
-distanceSensors = zeros([n n]);
-inRadius = zeros([n n]);
+distanceSensors = zeros(n);
+inRadius = zeros(n);
 neighbors = [];
 for i = 1:n
     for j = 1:n
@@ -59,8 +59,82 @@ hold off
 % algorithm.
 
 % Randomized Gossip
+%selectedNode = ceil(1 + (n - 1)*rand(1));
+W_i_j = zeros(n);
+%W_Bar = zeros([n*n n]);
+% Initialize 
+P = generate_p_matrix(inRadius);
 
+W_bar = zeros(n);
+for i = 1:n
+    for j = i+1:n 
+        if P(i,j) > 0
+            e_i = zeros([n 1]);
+            e_i(i,:) = 1;
+            e_j = zeros([n 1]);
+            e_j(j,:) = 1;
+            W_i_j = eye(n) - (1/2)*(e_i - e_j)*(e_i - e_j)';
+            W_bar = W_bar + P(i,j)*W_i_j;
+        end
+    end
+end    
 
+numberEdges = size(neighbors,1);
+
+W_cell = cell(numberEdges,1);
+
+for k = 1:numberEdges
+    i = neighbors(k,1);
+    j = neighbors(k,2);
+    e_i = zeros(n,1); e_i(i) = 1;
+    e_j = zeros(n,1); e_j(j) = 1;
+    W_cell{k} = eye(n) - 0.5 * (e_i - e_j) * (e_i - e_j)';
+end
+
+cvx_begin
+    variable p(numberEdges) nonnegative
+
+    W_bar = 0;
+    for k = 1:numberEdges
+        W_bar = W_bar + p(k) * W_cell{k};
+    end    
+    W_bar = W_bar / n;
+
+    minimize (lambda_max(W_bar - (1/n)*ones(n)))
+
+    for i = 1:n
+        idx = (neighbors(:,1) == i) | (neighbors(:,2) == i);
+        sum(p(idx)) == 1;
+    end    
+cvx_end
+
+P_opt = zeros(n);
+for k = 1:numberEdges
+    i = neighbors(k,1);
+    j = neighbors(k,2);
+    P_opt(i,j) = p(k);
+    P_opt(j,i) = p(k); % symmetric
+end
+
+x = measurment;
+K = 1000;
+meanBase = ones([n 1])*(lower + upper)*(0.5);
+error = zeros([K+1 1]);
+
+for k = 1:K
+    error(k,1) = norm(x - meanBase,2)^2/n;
+    edge_idx = randsample(numberEdges, 1, true, p); % pick edge according to optimal p
+    i = neighbors(edge_idx, 1);
+    j = neighbors(edge_idx, 2);
+    avg = (x(i) + x(j))/2;
+    x(i) = avg;
+    x(j) = avg;
+end    
+error(k+1,1) = norm(x - meanBase,2)^2/n;
+
+figure
+plot(error)
+set(gca, 'YScale', 'log')
 %% • Suppose the sensor network would like to compute the median of the measurement
 % data. Implement the median consensus problem using the PDMM algorithm.
 
