@@ -6,8 +6,8 @@ close all
 rng(5) % Set random seed for repeatability
 area = 100; % Meter (area x area)
 n = 50; % Number of nodes
-lower = -10;
-upper = 30;
+lower = 0;
+upper = 10;
 
 coordinates = area*rand([n 2]);
 measurment = lower + (upper - lower).*rand(n,1);
@@ -115,17 +115,19 @@ for k = 1:numberEdges
     P_opt(i,j) = p(k);
     P_opt(j,i) = p(k); % symmetric
 end
-
+%%
 x = measurment;
-K = 1000;
+K = 10000;
 meanBase = ones([n 1])*(lower + upper)*(0.5);
 error = zeros([K+1 1]);
 
 for k = 1:K
     error(k,1) = norm(x - meanBase,2)^2/n;
-    edge_idx = randsample(numberEdges, 1, true, p); % pick edge according to optimal p
-    i = neighbors(edge_idx, 1);
-    j = neighbors(edge_idx, 2);
+    pickedNode = randi([1 n], 1);
+    [~ ,edge_idx] = max(P_opt(pickedNode,:));
+    %edge_idx = randsample(numberEdges, 1, true, P_opt); % pick edge according to optimal p
+    i = pickedNode;%neighbors(edge_idx, 1);
+    j = edge_idx;%neighbors(edge_idx, 2);
     avg = (x(i) + x(j))/2;
     x(i) = avg;
     x(j) = avg;
@@ -135,6 +137,7 @@ error(k+1,1) = norm(x - meanBase,2)^2/n;
 figure
 plot(error)
 set(gca, 'YScale', 'log')
+fprintf('Final error: %f', error(end))
 %% • Suppose the sensor network would like to compute the median of the measurement
 % data. Implement the median consensus problem using the PDMM algorithm.
 
