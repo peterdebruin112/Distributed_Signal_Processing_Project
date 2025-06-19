@@ -6,8 +6,8 @@ close all
 rng(5) % Set random seed for repeatability
 area = 100; % Meter (area x area)
 n = 50; % Number of nodes
-lower = 0;
-upper = 10;
+lower = -10;
+upper = 30;
 
 coordinates = area*rand([n 2]);
 measurment = lower + (upper - lower).*rand(n,1);
