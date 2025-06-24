@@ -112,15 +112,17 @@ cvx_begin
         W_bar = W_bar + p(k) * W_cell{k};
     end    
     W_bar = W_bar / n;
-
+    %eigval = eigs(W_bar);
     minimize (lambda_max(W_bar - (1/n)*ones(n)))
+    %minimize (lambda_sum_largest(W_bar,2))
+    %minimize (svd)
 
     for i = 1:n
         idx = (neighbors(:,1) == i) | (neighbors(:,2) == i);
         sum(p(idx)) == 1;
     end    
 cvx_end
-
+W_bar = full(W_bar);
 P_opt = zeros(n);
 for k = 1:numberEdges
     i = neighbors(k,1);
@@ -136,9 +138,8 @@ error = zeros([K+1 1]);
 
 for k = 1:K
     error(k,1) = norm(x - meanBase,2)^2/n;
-    pickedNode = randi([1 n], 1);
-    [~ ,edge_idx] = max(P_opt(pickedNode,:));
-    %edge_idx = randsample(numberEdges, 1, true, P_opt); % pick edge according to optimal p
+    pickedNode = randi([1 n], 1);  %Pick uniformly a random node
+    edge_idx = randsample(n, 1, true, P_opt(pickedNode,:)); % pick edge node according to optimal P_opt
     i = pickedNode;%neighbors(edge_idx, 1);
     j = edge_idx;%neighbors(edge_idx, 2);
     avg = (x(i) + x(j))/2;
@@ -150,7 +151,7 @@ error(k+1,1) = norm(x - meanBase,2)^2/n;
 figure
 plot(error)
 set(gca, 'YScale', 'log')
-fprintf('Final error: %f', error(end))
+fprintf('Final error: %f \n', error(end))
 %% • Suppose the sensor network would like to compute the median of the measurement
 % data. Implement the median consensus problem using the PDMM algorithm.
 
