@@ -1,23 +1,36 @@
 clear all
 close all
 
-%% Consider the situation where we randomly place sensors in a square area of 100x100 m 2 to
+%% Create virtual area with randomly placed sensors
+% Consider the situation where we randomly place sensors in a square area of 100x100 m 2 to
 % measure a certain quantity (for example temperature, density, ...).
-rng(5) % Set random seed for repeatability
-area = 100; % Meter (area x area)
-n = 50; % Number of nodes
-lower = -10;
-upper = 30;
 
+% Set random seed for repeatability
+rng(5);
+
+% Define the area, amount of sensors and upper and lower bound of the
+% measured values from the sensors in the network.
+area = 100; % Meter (area x area)
+n = 50;     % Number of nodes
+lower = -10;% Lower bound of sensor measurement
+upper = 30; % Upper bound of sensor measurement
+
+% Define the coordinates of the sensors and place them in the area.
 coordinates = area*rand([n 2]);
 measurment = lower + (upper - lower).*rand(n,1);
 figure
 scatter(coordinates(:, 1), coordinates(:, 2))
-%% • Design a proper connected sensor network that covers the area of the plant by using a
+
+%% Construct a proper connected sensor network
+% • Design a proper connected sensor network that covers the area of the plant by using a
 % reasonable number of sensors. How many do we need to guarantee a connected sensor
 % network? Motivate your choice.
-sensorRadius = 20; % Meter
-nNeeded = ceil(find_n(sensorRadius)*area);
+
+% Given the maximal coverage distance between consecutive sensors, compute
+% the minimum amount of sensors needed to guarantee a proper connected sensor
+% network.
+sensorRadius = 10;                          % Define sensor coverage in m
+nNeeded = ceil(find_n(sensorRadius)*area);  % 
 r = sqrt((2*log(n))/(n))*area;
 prob = 1 - 1/n^2;
 sensorRadius = r;

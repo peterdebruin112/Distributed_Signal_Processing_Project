@@ -6,7 +6,7 @@ function P = generate_p_matrix(adj)
 n = size(adj,1);
 P = zeros(n);
 
-% Find all edges (i < j)
+% Find all the indicdes of the edges (i < j)
 edges = find(triu(adj,1));
 num_edges = length(edges);
 
@@ -17,7 +17,7 @@ end
 % Assign equal probability to each edge
 prob = 1/num_edges;
 
-% Fill P for each edge
+% Fill P for each edge with uniform probability 1/n
 for idx = 1:num_edges
     [i, j] = ind2sub([n n], edges(idx));
     P(i,j) = prob;
