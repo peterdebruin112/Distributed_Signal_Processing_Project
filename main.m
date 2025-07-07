@@ -18,7 +18,7 @@ upper = 30; % Upper bound of sensor measurement
 % Define the coordinates of the sensors and place them in the area.
 coordinates = area*rand([n 2]);
 measurment = lower + (upper - lower).*rand(n,1);
-figure
+figure(1)
 scatter(coordinates(:, 1), coordinates(:, 2))
 
 %% Construct a proper connected sensor network
@@ -37,17 +37,31 @@ sensorRadius = r;
 distanceSensors = zeros(n);
 inRadius = zeros(n);
 neighbors = [];
+neighbors_pdmm = [];
+D = zeros(n);
+A = zeros(n);
+
 for i = 1:n
     for j = 1:n
         distanceSensors(i,j) = sqrt((coordinates(i,1) - coordinates(j,1))^2 + (coordinates(i,2) - coordinates(j,2))^2);
         if distanceSensors(i,j) <= sensorRadius && i<j
             inRadius(i,j) = 1;
-            neighbors = [neighbors ; i , j];
+            neighbors = [neighbors ; i , j]; 
         end
+        if distanceSensors(i,j) <= sensorRadius && i~=j
+            neighbors_pdmm = [neighbors_pdmm ; i , j]; 
+            A(i,j) = 1;
+            D(i,i) = D(i,i) + 1;
+        end  
     end
 end
 
-figure
+if nnz(diag(D)) ~= length(diag(D))
+    disp("ERROR")
+    return
+end
+
+figure(2)
 hold on
 title(['# Sensors = ' num2str(n), ' Radius = ', num2str(sensorRadius), ' prob = ', num2str(prob)])
 scatter(coordinates(:,1), coordinates(:,2))
@@ -150,10 +164,62 @@ for k = 1:K
 end    
 error(k+1,1) = norm(x - meanBase,2)^2/n;
 
-figure
+figure(3)
 plot(error)
 set(gca, 'YScale', 'log')
 fprintf('Final error: %f \n', error(end))
+
+%% PDMM
+A_pdmm = -triu(A) + tril(A);
+
+x_pdmm = measurment;
+a = measurment;
+meanBase_pdmm = mean(x_pdmm);
+K = 10000; % Number of iterations
+c = 0.2;
+error_pdmm = zeros([K + 1 1]);
+Z = zeros(n);
+updated = zeros(n);
+Y = zeros(n);
+%d = diag(D); % Degree of every node
+
+for k = 1:K
+    error_pdmm(k,1) = norm(x_pdmm - meanBase_pdmm,2)^2/n;
+    for i = 1:n 
+        sumNeighbors = 0;
+
+        pdmm_neighbors = find(neighbors_pdmm(:,1) == i);
+        d = length(pdmm_neighbors);
+        for index = pdmm_neighbors' % Transpose such that it iterates through it
+            j = neighbors_pdmm(index, 2);
+            if A_pdmm(i,j) == 0
+                disp('Error: A_pdmm == 0')
+                return
+            end
+            updated(i,j) = updated(i,j) + 1;
+            sumNeighbors = sumNeighbors + A_pdmm(i,j)*Z(i,j);
+        end
+    % X Update equation 
+        x_pdmm(i) = (a(i) - sumNeighbors)/ (1+ c*d);
+        for index = pdmm_neighbors'
+            j = neighbors_pdmm(index, 2);
+            Y(i,j) = Z(i,j) + 2*c*A_pdmm(i,j)*x_pdmm(i); %Y update equation
+            Z(j,i) = Y(i,j); %Z update equation
+        end    
+    end    
+end
+
+error_pdmm(k + 1,1) = norm(x_pdmm - meanBase_pdmm,2)^2/n;
+
+figure(3)
+hold on
+grid on
+plot(error_pdmm, Color="g")
+legend('Randomized Gossip', 'PDMM')
+set(gca, 'YScale', 'log')
+ylim([10e-15 10e5])
+hold off
+fprintf('Final error: %f \n', error_pdmm(end))
 %% • Suppose the sensor network would like to compute the median of the measurement
 % data. Implement the median consensus problem using the PDMM algorithm.
 
