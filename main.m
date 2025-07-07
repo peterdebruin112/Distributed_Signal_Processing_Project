@@ -133,18 +133,20 @@ end
 %%
 x = measurment;
 K = 10000;
-meanBase = ones([n 1])*(lower + upper)*(0.5);
+meanBase = mean(x);
 error = zeros([K+1 1]);
 
 for k = 1:K
     error(k,1) = norm(x - meanBase,2)^2/n;
-    pickedNode = randi([1 n], 1);  %Pick uniformly a random node
-    edge_idx = randsample(n, 1, true, P_opt(pickedNode,:)); % pick edge node according to optimal P_opt
-    i = pickedNode;%neighbors(edge_idx, 1);
-    j = edge_idx;%neighbors(edge_idx, 2);
-    avg = (x(i) + x(j))/2;
-    x(i) = avg;
-    x(j) = avg;
+    index = randi([1 numberEdges], 1);
+    % pickedNode = randi([1 n], 1);  %Pick uniformly a random node
+    % edge_idx = randsample(n, 1, true, P_opt(pickedNode,:)); % pick edge node according to optimal P_opt
+    % i = pickedNode;%neighbors(edge_idx, 1);
+    % j = edge_idx;%neighbors(edge_idx, 2);
+    % avg = (x(i) + x(j))/2;
+    % x(i) = avg;
+    % x(j) = avg;
+    x = W_cell{index}*x;
 end    
 error(k+1,1) = norm(x - meanBase,2)^2/n;
 
