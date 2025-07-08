@@ -11,7 +11,7 @@ rng(5);
 % Define the area, amount of sensors and upper and lower bound of the
 % measured values from the sensors in the network.
 area = 100; % Meter (area x area)
-n = 50;     % Number of nodes
+n = 55;     % Number of nodes
 lower = -10;% Lower bound of sensor measurement
 upper = 30; % Upper bound of sensor measurement
 
@@ -204,8 +204,15 @@ for k = 1:K
         for index = pdmm_neighbors'
             j = neighbors_pdmm(index, 2);
             Y(i,j) = Z(i,j) + 2*c*A_pdmm(i,j)*x_pdmm(i); %Y update equation
-            Z(j,i) = Y(i,j); %Z update equation
+            %Z(j,i) = Y(i,j); %Z update equation
         end    
+    end   
+    for i = 1:n
+        pdmm_neighbors = find(neighbors_pdmm(:,1) == i);
+        for index = pdmm_neighbors'
+            j = neighbors_pdmm(index, 2);
+            Z(j,i) = Y(i,j);
+        end
     end    
 end
 
@@ -214,8 +221,8 @@ error_pdmm(k + 1,1) = norm(x_pdmm - meanBase_pdmm,2)^2/n;
 figure(3)
 hold on
 grid on
-plot(error_pdmm, Color="g")
-legend('Randomized Gossip', 'PDMM')
+plot(error_pdmm)
+legend('Randomised Gossip', 'PDMM')
 set(gca, 'YScale', 'log')
 ylim([10e-15 10e5])
 hold off
@@ -223,3 +230,70 @@ fprintf('Final error: %f \n', error_pdmm(end))
 %% • Suppose the sensor network would like to compute the median of the measurement
 % data. Implement the median consensus problem using the PDMM algorithm.
 
+medianBase_pdmm = median(measurment);
+
+A_pdmm_medi = -triu(A) + tril(A);
+
+x_pdmm_medi = measurment;
+a_medi = measurment;
+
+K = 10000; % Number of iterations
+c = 0.02;
+error_pdmm_medi = zeros([K + 1 1]);
+Z_medi = zeros(n);
+updated = zeros(n);
+Y_medi = zeros(n);
+%d = diag(D); % Degree of every node
+alselse = 0;
+for k = 1:K
+    error_pdmm_medi(k,1) = norm(x_pdmm_medi - medianBase_pdmm,2)^2/n;
+    for i = 1:n 
+        sumNeighbors_medi = 0;
+
+        pdmm_neighbors = find(neighbors_pdmm(:,1) == i);
+        d_medi = length(pdmm_neighbors);
+        for index = pdmm_neighbors' % Transpose such that it iterates through it
+            j = neighbors_pdmm(index, 2);
+            if A_pdmm_medi(i,j) == 0
+                disp('Error: A_pdmm == 0')
+                return
+            end
+            updated(i,j) = updated(i,j) + 1;
+            sumNeighbors_medi = sumNeighbors_medi + A_pdmm_medi(i,j)*Z_medi(i,j);
+        end
+    % X Update equation
+        if (-1 - sumNeighbors_medi)/ (c*d_medi) > a(i)
+            x_pdmm_medi(i) = (-1 - sumNeighbors_medi)/ (c*d_medi);
+        elseif (1 - sumNeighbors_medi)/ (c*d_medi) < a(i)
+            x_pdmm_medi(i) = (1 - sumNeighbors_medi)/ (c*d_medi);
+        else
+            alselse = alselse + 1;
+            x_pdmm_medi(i) = a(i);%(0 - sumNeighbors_medi)/ (c*d_medi);
+        end
+        
+        for index = pdmm_neighbors'
+            j = neighbors_pdmm(index, 2);
+            Y_medi(i,j) = Z_medi(i,j) + 2*c*A_pdmm_medi(i,j)*x_pdmm_medi(i); %Y update equation
+            %Z(j,i) = Y(i,j); %Z update equation
+        end    
+    end   
+    for i = 1:n
+        pdmm_neighbors_medi = find(neighbors_pdmm(:,1) == i);
+        for index = pdmm_neighbors_medi'
+            j = neighbors_pdmm(index, 2);
+            Z_medi(j,i) = Y_medi(i,j);
+        end
+    end    
+end
+
+error_pdmm_medi(k + 1,1) = norm(x_pdmm_medi - medianBase_pdmm,2)^2/n;
+
+figure(4)
+hold on
+grid on
+plot(error_pdmm_medi)
+legend('PDMM')
+set(gca, 'YScale', 'log')
+ylim([10e-15 10e5])
+hold off
+fprintf('Final error: %f \n', error_pdmm_medi(end))
