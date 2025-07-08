@@ -11,7 +11,7 @@ rng(5);
 % Define the area, amount of sensors and upper and lower bound of the
 % measured values from the sensors in the network.
 area = 100; % Meter (area x area)
-n = 101;     % Number of nodes
+n = 100;     % Number of nodes
 lower = -10;% Lower bound of sensor measurement
 upper = 30; % Upper bound of sensor measurement
 
@@ -150,6 +150,7 @@ K = 1000000;
 meanBase = mean(x);
 error = zeros([K+1 1]);
 transmissions_gossip = 0;
+
 for k = 1:K
     error(k,1) = norm(x - meanBase,2)^2/n;
     index = randi([1 numberEdges], 1);
@@ -165,11 +166,26 @@ for k = 1:K
 end    
 error(k+1,1) = norm(x - meanBase,2)^2/n;
 
+x = measurment;
+error_opt = zeros([K+1 1]);
+transmissions_gossip_opt = 0;
+for k = 1:K
+    error_opt(k,1) = norm(x - meanBase,2)^2/n;
+    pickedNode = randi([1 n], 1);  %Pick uniformly a random node
+    edge_idx = randsample(n, 1, true, P_opt(pickedNode,:)); % pick edge node according to optimal P_opt
+    i = pickedNode;%neighbors(edge_idx, 1);
+    j = edge_idx;%neighbors(edge_idx, 2);
+    avg = (x(i) + x(j))/2;
+    x(i) = avg;
+    x(j) = avg;
+    transmissions_gossip_opt = transmissions_gossip_opt + 2;
+end    
+error_opt(k+1,1) = norm(x - meanBase,2)^2/n;
 % figure(3)
 % plot(error)
 % xticks(0:1000:transmissions_gossip)
 % set(gca, 'YScale', 'log')
-fprintf('Final error: %f \n', error(end))
+fprintf('Final error: %f \n', error_opt(end))
 
 %% PDMM
 A_pdmm = -triu(A) + tril(A);
@@ -242,6 +258,80 @@ end
 % ylim([10e-15 10e5])
 % hold off
 fprintf('Final error: %f \n', error_pdmm(end))
+%% Asynchronous PDMM
+
+x_pdmm_async = measurment;
+a = measurment;
+meanBase_pdmm = mean(x_pdmm_async);
+K = 1000; % Number of iterations
+c = 0.2;
+error_pdmm_async = zeros([K  1]);
+Z_async = zeros(n);
+%error_pdmm = [];
+updated = zeros(n);
+Y_async = zeros(n);
+%d = diag(D); % Degree of every node
+transmission_pdmm_mean_async = 0;
+for k = 1:K
+    error_pdmm_async(k,1) = norm(x_pdmm_async - meanBase_pdmm,2)^2/n;
+    activeNodes = randperm(n , randi(n)); % Generates a vector with active nodes numbers
+    for i = activeNodes
+        sumNeighbors = 0;
+        pdmm_neighbors = find(neighbors_pdmm(:,1) == i);
+        d = length(pdmm_neighbors);
+        for index = pdmm_neighbors' % Transpose such that it iterates through it
+            j = neighbors_pdmm(index, 2);
+            if A_pdmm(i,j) == 0
+                disp('Error: A_pdmm == 0')
+                return
+            end
+            % Check if the nodes is in the active nodes
+            if isempty(find(activeNodes == j, 1))
+                %disp(['Node ', num2str(j), ' is not active'])
+            else
+                updated(i,j) = updated(i,j) + 1;
+                sumNeighbors = sumNeighbors + A_pdmm(i,j)*Z_async(i,j);
+            end
+            
+            
+        end
+    % Primal Update equation 
+        x_pdmm_async(i) = (a(i) - sumNeighbors)/ (1+ c*d);
+        for index = pdmm_neighbors'
+            j = neighbors_pdmm(index, 2);
+            if isempty(find(activeNodes == j, 1))
+                %disp(['Node ', num2str(j), ' is not active'])
+            else
+                Y_async(i,j) = Z_async(i,j) + 2*c*A_pdmm(i,j)*x_pdmm_async(i); %Y update equation
+                transmission_pdmm_mean_async = transmission_pdmm_mean_async + 1;
+            end
+            
+            %Z(j,i) = Y(i,j); %Z update equation
+        end    
+    end   
+    % for i = 1:n
+    %     pdmm_neighbors = find(neighbors_pdmm(:,1) == i);
+    %     for index = pdmm_neighbors'
+    %         j = neighbors_pdmm(index, 2);
+    %         Y(i,j) = Z(i,j) + 2*c*A_pdmm(i,j)*x_pdmm(i); %Y update equation
+    %         transmission_pdmm_mean = transmission_pdmm_mean + 1;
+    % 
+    %     end
+    % %transmission_pdmm_mean = transmission_pdmm_mean + 1;
+    % end
+    for i = activeNodes
+        pdmm_neighbors = find(neighbors_pdmm(:,1) == i);
+        for index = pdmm_neighbors'
+            j = neighbors_pdmm(index, 2);
+            if isempty(find(activeNodes == j, 1))
+                %disp(['Node ', num2str(j), ' is not active'])
+            else
+                Z_async(j,i) = Y_async(i,j);
+            end     
+        end
+    end 
+end
+fprintf('Final error: %f \n', error_pdmm_async(end))
 %% • Suppose the sensor network would like to compute the median of the measurement
 % data. Implement the median consensus problem using the PDMM algorithm.
 
@@ -318,17 +408,22 @@ fprintf('Final error: %f \n', error_pdmm_medi(end))
 %% Plotting everything
 % Plot error of mean consensus problem
 transmissions = linspace(0, transmissions_gossip, transmissions_gossip/2 + 1);
+transmissions_opt = linspace(0, transmissions_gossip_opt, transmissions_gossip_opt/2 + 1);
 transmissions_pdmm = linspace(0, transmission_pdmm_mean, 100);
+transmissions_pdmm_async = linspace(0, transmission_pdmm_mean_async, 1000);
 
 figure(3)
 clf(3)
 hold on
 semilogy(transmissions, error, 'b', 'LineWidth', 1.5)
+semilogy(transmissions_opt, error_opt, 'm', 'LineWidth', 1.5)
 semilogy(transmissions_pdmm, error_pdmm, 'r', 'LineWidth', 1.5)
-
+semilogy(transmissions_pdmm_async, error_pdmm_async, 'g', 'LineWidth', 1.5)
 
 legend({'Randomised gossip', ...
-        'PDMM'}, ...
+        'Randomised gossip optimal', ...
+        'PDMM (Synchronous)', ...
+        'PDMM (Asynchronous)'}, ...
        'Location', 'northeast', ...
        'FontSize', 10);
 
