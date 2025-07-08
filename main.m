@@ -11,7 +11,7 @@ rng(5);
 % Define the area, amount of sensors and upper and lower bound of the
 % measured values from the sensors in the network.
 area = 100; % Meter (area x area)
-n = 55;     % Number of nodes
+n = 101;     % Number of nodes
 lower = -10;% Lower bound of sensor measurement
 upper = 30; % Upper bound of sensor measurement
 
@@ -146,10 +146,10 @@ for k = 1:numberEdges
 end
 %%
 x = measurment;
-K = 10000;
+K = 1000000;
 meanBase = mean(x);
 error = zeros([K+1 1]);
-
+transmissions_gossip = 0;
 for k = 1:K
     error(k,1) = norm(x - meanBase,2)^2/n;
     index = randi([1 numberEdges], 1);
@@ -161,12 +161,14 @@ for k = 1:K
     % x(i) = avg;
     % x(j) = avg;
     x = W_cell{index}*x;
+    transmissions_gossip = transmissions_gossip + 2;
 end    
 error(k+1,1) = norm(x - meanBase,2)^2/n;
 
-figure(3)
-plot(error)
-set(gca, 'YScale', 'log')
+% figure(3)
+% plot(error)
+% xticks(0:1000:transmissions_gossip)
+% set(gca, 'YScale', 'log')
 fprintf('Final error: %f \n', error(end))
 
 %% PDMM
@@ -175,19 +177,19 @@ A_pdmm = -triu(A) + tril(A);
 x_pdmm = measurment;
 a = measurment;
 meanBase_pdmm = mean(x_pdmm);
-K = 10000; % Number of iterations
+K = 100; % Number of iterations
 c = 0.2;
-error_pdmm = zeros([K + 1 1]);
+error_pdmm = zeros([K  1]);
 Z = zeros(n);
+%error_pdmm = [];
 updated = zeros(n);
 Y = zeros(n);
 %d = diag(D); % Degree of every node
-
+transmission_pdmm_mean = 0;
 for k = 1:K
     error_pdmm(k,1) = norm(x_pdmm - meanBase_pdmm,2)^2/n;
-    for i = 1:n 
+    for i = 1:n  % Synchronous
         sumNeighbors = 0;
-
         pdmm_neighbors = find(neighbors_pdmm(:,1) == i);
         d = length(pdmm_neighbors);
         for index = pdmm_neighbors' % Transpose such that it iterates through it
@@ -199,33 +201,46 @@ for k = 1:K
             updated(i,j) = updated(i,j) + 1;
             sumNeighbors = sumNeighbors + A_pdmm(i,j)*Z(i,j);
         end
-    % X Update equation 
+    % Primal Update equation 
         x_pdmm(i) = (a(i) - sumNeighbors)/ (1+ c*d);
         for index = pdmm_neighbors'
             j = neighbors_pdmm(index, 2);
             Y(i,j) = Z(i,j) + 2*c*A_pdmm(i,j)*x_pdmm(i); %Y update equation
+            transmission_pdmm_mean = transmission_pdmm_mean + 1;
             %Z(j,i) = Y(i,j); %Z update equation
         end    
     end   
+    % for i = 1:n
+    %     pdmm_neighbors = find(neighbors_pdmm(:,1) == i);
+    %     for index = pdmm_neighbors'
+    %         j = neighbors_pdmm(index, 2);
+    %         Y(i,j) = Z(i,j) + 2*c*A_pdmm(i,j)*x_pdmm(i); %Y update equation
+    %         transmission_pdmm_mean = transmission_pdmm_mean + 1;
+    % 
+    %     end
+    % %transmission_pdmm_mean = transmission_pdmm_mean + 1;
+    % end
     for i = 1:n
         pdmm_neighbors = find(neighbors_pdmm(:,1) == i);
         for index = pdmm_neighbors'
             j = neighbors_pdmm(index, 2);
             Z(j,i) = Y(i,j);
         end
-    end    
+    end 
 end
 
-error_pdmm(k + 1,1) = norm(x_pdmm - meanBase_pdmm,2)^2/n;
+%error_pdmm(k + 1,1) = norm(x_pdmm - meanBase_pdmm,2)^2/n;
 
-figure(3)
-hold on
-grid on
-plot(error_pdmm)
-legend('Randomised Gossip', 'PDMM')
-set(gca, 'YScale', 'log')
-ylim([10e-15 10e5])
-hold off
+% figure(5)
+% hold on
+% grid on
+% plot(error_pdmm)
+% 
+% legend('Randomised Gossip', 'PDMM')
+% set(gca, 'YScale', 'log')
+% set(gca, 'XScale', 'linear')
+% ylim([10e-15 10e5])
+% hold off
 fprintf('Final error: %f \n', error_pdmm(end))
 %% • Suppose the sensor network would like to compute the median of the measurement
 % data. Implement the median consensus problem using the PDMM algorithm.
@@ -238,13 +253,13 @@ x_pdmm_medi = measurment;
 a_medi = measurment;
 
 K = 10000; % Number of iterations
-c = 0.02;
-error_pdmm_medi = zeros([K + 1 1]);
+c = 0.5;
+error_pdmm_medi = zeros([K 1]);
 Z_medi = zeros(n);
 updated = zeros(n);
 Y_medi = zeros(n);
 %d = diag(D); % Degree of every node
-alselse = 0;
+transmissions_pdmm_medi = 0;
 for k = 1:K
     error_pdmm_medi(k,1) = norm(x_pdmm_medi - medianBase_pdmm,2)^2/n;
     for i = 1:n 
@@ -267,7 +282,6 @@ for k = 1:K
         elseif (1 - sumNeighbors_medi)/ (c*d_medi) < a(i)
             x_pdmm_medi(i) = (1 - sumNeighbors_medi)/ (c*d_medi);
         else
-            alselse = alselse + 1;
             x_pdmm_medi(i) = a(i);%(0 - sumNeighbors_medi)/ (c*d_medi);
         end
         
@@ -275,25 +289,78 @@ for k = 1:K
             j = neighbors_pdmm(index, 2);
             Y_medi(i,j) = Z_medi(i,j) + 2*c*A_pdmm_medi(i,j)*x_pdmm_medi(i); %Y update equation
             %Z(j,i) = Y(i,j); %Z update equation
+            transmissions_pdmm_medi = transmissions_pdmm_medi + 1;
         end    
     end   
     for i = 1:n
         pdmm_neighbors_medi = find(neighbors_pdmm(:,1) == i);
         for index = pdmm_neighbors_medi'
             j = neighbors_pdmm(index, 2);
-            Z_medi(j,i) = Y_medi(i,j);
+            Z_medi(j,i) = (1/2)*(Y_medi(i,j) + Z_medi(j,i)) ;
         end
     end    
 end
 
-error_pdmm_medi(k + 1,1) = norm(x_pdmm_medi - medianBase_pdmm,2)^2/n;
+%error_pdmm_medi(k + 1,1) = norm(x_pdmm_medi - medianBase_pdmm,2)^2/n;
+
+% figure(4)
+% hold on
+% grid on
+% plot(error_pdmm_medi)
+% legend('PDMM')
+% set(gca, 'YScale', 'log')
+% ylim([10e-15 10e5])
+% hold off
+fprintf('Final error: %f \n', error_pdmm_medi(end))
+
+
+
+%% Plotting everything
+% Plot error of mean consensus problem
+transmissions = linspace(0, transmissions_gossip, transmissions_gossip/2 + 1);
+transmissions_pdmm = linspace(0, transmission_pdmm_mean, 100);
+
+figure(3)
+clf(3)
+hold on
+semilogy(transmissions, error, 'b', 'LineWidth', 1.5)
+semilogy(transmissions_pdmm, error_pdmm, 'r', 'LineWidth', 1.5)
+
+
+legend({'Randomised gossip', ...
+        'PDMM'}, ...
+       'Location', 'northeast', ...
+       'FontSize', 10);
+
+
+grid on
+title(['Mean Consensus problem Nodes = ' , num2str(n)])
+xlabel('transmissions', 'FontSize', 12);
+ylabel('$\|x^{(k)} - x^*\|$', 'Interpreter', 'latex', 'FontSize', 14);
+set(gca, 'YScale', 'log');
+ylim([1e-10 1e2]);
+hold off
+
+% Plot error median consensu problem
+
+transmissions_pdmm_medi_plot = linspace(0, transmissions_pdmm_medi, 10000);
 
 figure(4)
+clf(4)
 hold on
+%semilogy(transmissions, error, 'b', 'LineWidth', 1.5)
+semilogy(transmissions_pdmm_medi_plot, error_pdmm_medi, 'b', 'LineWidth', 1.5)
+
+
+legend({'PDMM'}, ...
+       'Location', 'northeast', ...
+       'FontSize', 10);
+
+
 grid on
-plot(error_pdmm_medi)
-legend('PDMM')
-set(gca, 'YScale', 'log')
-ylim([10e-15 10e5])
+title(['Median Consensus problem Nodes = ' , num2str(n)])
+xlabel('transmissions', 'FontSize', 12);
+ylabel('$\|x^{(k)} - x^*\|$', 'Interpreter', 'latex', 'FontSize', 14);
+set(gca, 'YScale', 'log');
+ylim([1e-10 1e2]);
 hold off
-fprintf('Final error: %f \n', error_pdmm_medi(end))
