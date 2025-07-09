@@ -259,11 +259,11 @@ end
 % hold off
 fprintf('Final error: %f \n', error_pdmm(end))
 %% Asynchronous PDMM
-
+A_pdmm = -triu(A) + tril(A);
 x_pdmm_async = measurment;
-a = measurment;
+a_async = measurment;
 meanBase_pdmm = mean(x_pdmm_async);
-K = 1000; % Number of iterations
+K = 100; % Number of iterations
 c = 0.2;
 error_pdmm_async = zeros([K  1]);
 Z_async = zeros(n);
@@ -274,10 +274,11 @@ Y_async = zeros(n);
 transmission_pdmm_mean_async = 0;
 for k = 1:K
     error_pdmm_async(k,1) = norm(x_pdmm_async - meanBase_pdmm,2)^2/n;
-    activeNodes = randperm(n , randi(n)); % Generates a vector with active nodes numbers
+    activeNodes = randperm(n , randi([1 n])); % Generates a vector with active nodes numbers
     for i = activeNodes
         sumNeighbors = 0;
         pdmm_neighbors = find(neighbors_pdmm(:,1) == i);
+        %d = 0;
         d = length(pdmm_neighbors);
         for index = pdmm_neighbors' % Transpose such that it iterates through it
             j = neighbors_pdmm(index, 2);
@@ -286,25 +287,27 @@ for k = 1:K
                 return
             end
             % Check if the nodes is in the active nodes
-            if isempty(find(activeNodes == j, 1))
-                %disp(['Node ', num2str(j), ' is not active'])
-            else
-                updated(i,j) = updated(i,j) + 1;
-                sumNeighbors = sumNeighbors + A_pdmm(i,j)*Z_async(i,j);
-            end
+            % if isempty(find(activeNodes == j, 1))
+            %     %disp(['Node ', num2str(j), ' is not active'])
+            % else
+                 updated(i,j) = updated(i,j) + 1;
+                 sumNeighbors = sumNeighbors + A_pdmm(i,j)*Z_async(i,j);
+            %     d = d + 1;
+            % end
             
             
         end
     % Primal Update equation 
-        x_pdmm_async(i) = (a(i) - sumNeighbors)/ (1+ c*d);
+        x_pdmm_async(i) = (a_async(i) - sumNeighbors)/ (1+ c*d);
         for index = pdmm_neighbors'
             j = neighbors_pdmm(index, 2);
-            if isempty(find(activeNodes == j, 1))
+            %if isempty(find(activeNodes == j, 1))
                 %disp(['Node ', num2str(j), ' is not active'])
-            else
+            %else
                 Y_async(i,j) = Z_async(i,j) + 2*c*A_pdmm(i,j)*x_pdmm_async(i); %Y update equation
+                %Z_async(j,i) = Y_async(i,j);
                 transmission_pdmm_mean_async = transmission_pdmm_mean_async + 1;
-            end
+            %end
             
             %Z(j,i) = Y(i,j); %Z update equation
         end    
@@ -323,11 +326,11 @@ for k = 1:K
         pdmm_neighbors = find(neighbors_pdmm(:,1) == i);
         for index = pdmm_neighbors'
             j = neighbors_pdmm(index, 2);
-            if isempty(find(activeNodes == j, 1))
+            %if isempty(find(activeNodes == j, 1))
                 %disp(['Node ', num2str(j), ' is not active'])
-            else
+            %else
                 Z_async(j,i) = Y_async(i,j);
-            end     
+            %end     
         end
     end 
 end
@@ -343,7 +346,7 @@ x_pdmm_medi = measurment;
 a_medi = measurment;
 
 K = 10000; % Number of iterations
-c = 0.5;
+c = 0.1;
 error_pdmm_medi = zeros([K 1]);
 Z_medi = zeros(n);
 updated = zeros(n);
@@ -367,12 +370,12 @@ for k = 1:K
             sumNeighbors_medi = sumNeighbors_medi + A_pdmm_medi(i,j)*Z_medi(i,j);
         end
     % X Update equation
-        if (-1 - sumNeighbors_medi)/ (c*d_medi) > a(i)
+        if (-1 - sumNeighbors_medi)/ (c*d_medi) > a_medi(i)
             x_pdmm_medi(i) = (-1 - sumNeighbors_medi)/ (c*d_medi);
-        elseif (1 - sumNeighbors_medi)/ (c*d_medi) < a(i)
+        elseif (1 - sumNeighbors_medi)/ (c*d_medi) < a_medi(i)
             x_pdmm_medi(i) = (1 - sumNeighbors_medi)/ (c*d_medi);
         else
-            x_pdmm_medi(i) = a(i);%(0 - sumNeighbors_medi)/ (c*d_medi);
+            x_pdmm_medi(i) = a_medi(i);%(0 - sumNeighbors_medi)/ (c*d_medi);
         end
         
         for index = pdmm_neighbors'
@@ -403,14 +406,83 @@ end
 % hold off
 fprintf('Final error: %f \n', error_pdmm_medi(end))
 
+%% MEDIAN PDMM ASYNC
 
+medianBase_pdmm = median(measurment);
+
+A_pdmm_medi_async = -triu(A) + tril(A);
+
+x_pdmm_medi_async = measurment;
+a_medi_async = measurment;
+
+K = 10000; % Number of iterations
+c = 0.1;
+error_pdmm_medi_async = zeros([K 1]);
+Z_medi_async = zeros(n);
+updated = zeros(n);
+Y_medi_asycn = zeros(n);
+%d = diag(D); % Degree of every node
+transmissions_pdmm_medi_async = 0;
+for k = 1:K
+    error_pdmm_medi_async(k,1) = norm(x_pdmm_medi_async - medianBase_pdmm,2)^2/n;
+    activeNodes_medi = randperm(n , randi([1 n])); % Generates a vector with active nodes numbers
+    for i = activeNodes_medi
+        sumNeighbors_medi = 0;
+
+        pdmm_neighbors = find(neighbors_pdmm(:,1) == i);
+        d_medi = length(pdmm_neighbors);
+        for index = pdmm_neighbors' % Transpose such that it iterates through it
+            j = neighbors_pdmm(index, 2);
+            if A_pdmm_medi_async(i,j) == 0
+                disp('Error: A_pdmm == 0')
+                return
+            end
+            updated(i,j) = updated(i,j) + 1;
+            sumNeighbors_medi = sumNeighbors_medi + A_pdmm_medi_async(i,j)*Z_medi_async(i,j);
+        end
+    % X Update equation
+        if (-1 - sumNeighbors_medi)/ (c*d_medi) > a_medi_async(i)
+            x_pdmm_medi_async(i) = (-1 - sumNeighbors_medi)/ (c*d_medi);
+        elseif (1 - sumNeighbors_medi)/ (c*d_medi) < a_medi_async(i)
+            x_pdmm_medi_async(i) = (1 - sumNeighbors_medi)/ (c*d_medi);
+        else
+            x_pdmm_medi_async(i) = a_medi_async(i);%(0 - sumNeighbors_medi)/ (c*d_medi);
+        end
+        
+        for index = pdmm_neighbors'
+            j = neighbors_pdmm(index, 2);
+            Y_medi_asycn(i,j) = Z_medi_async(i,j) + 2*c*A_pdmm_medi_async(i,j)*x_pdmm_medi_async(i); %Y update equation
+            %Z(j,i) = Y(i,j); %Z update equation
+            transmissions_pdmm_medi_async = transmissions_pdmm_medi_async + 1;
+        end    
+    end   
+    for i = activeNodes_medi
+        pdmm_neighbors_medi = find(neighbors_pdmm(:,1) == i);
+        for index = pdmm_neighbors_medi'
+            j = neighbors_pdmm(index, 2);
+            Z_medi_async(j,i) = (1/2)*(Y_medi_asycn(i,j) + Z_medi_async(j,i)) ;
+        end
+    end    
+end
+
+%error_pdmm_medi(k + 1,1) = norm(x_pdmm_medi - medianBase_pdmm,2)^2/n;
+
+% figure(4)
+% hold on
+% grid on
+% plot(error_pdmm_medi)
+% legend('PDMM')
+% set(gca, 'YScale', 'log')
+% ylim([10e-15 10e5])
+% hold off
+fprintf('Final error: %f \n', error_pdmm_medi_async(end))
 
 %% Plotting everything
 % Plot error of mean consensus problem
 transmissions = linspace(0, transmissions_gossip, transmissions_gossip/2 + 1);
 transmissions_opt = linspace(0, transmissions_gossip_opt, transmissions_gossip_opt/2 + 1);
 transmissions_pdmm = linspace(0, transmission_pdmm_mean, 100);
-transmissions_pdmm_async = linspace(0, transmission_pdmm_mean_async, 1000);
+transmissions_pdmm_async = linspace(0, transmission_pdmm_mean_async, 100);
 
 figure(3)
 clf(3)
@@ -439,15 +511,17 @@ hold off
 % Plot error median consensu problem
 
 transmissions_pdmm_medi_plot = linspace(0, transmissions_pdmm_medi, 10000);
-
+transmissions_pdmm_medi_async_plot = linspace(0, transmissions_pdmm_medi_async, 10000);
 figure(4)
 clf(4)
 hold on
 %semilogy(transmissions, error, 'b', 'LineWidth', 1.5)
 semilogy(transmissions_pdmm_medi_plot, error_pdmm_medi, 'b', 'LineWidth', 1.5)
+semilogy(transmissions_pdmm_medi_async_plot, error_pdmm_medi_async, 'r', 'LineWidth', 1.5)
 
 
-legend({'PDMM'}, ...
+legend({'PDMM (Synchronous)', ...
+        'PDMM (Asynchronous)'}, ...
        'Location', 'northeast', ...
        'FontSize', 10);
 
@@ -458,4 +532,5 @@ xlabel('transmissions', 'FontSize', 12);
 ylabel('$\|x^{(k)} - x^*\|$', 'Interpreter', 'latex', 'FontSize', 14);
 set(gca, 'YScale', 'log');
 ylim([1e-10 1e2]);
+xlim([0 1e6])
 hold off
